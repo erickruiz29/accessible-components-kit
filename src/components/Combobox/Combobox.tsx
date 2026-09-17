@@ -146,7 +146,6 @@ export function Combobox({ label, options }: ComboboxProps) {
         aria-autocomplete="list"
         aria-expanded={isOpen}
         aria-controls={listboxId}
-        aria-owns={isOpen ? listboxId : undefined}
         aria-activedescendant={activeDescendant}
       />
       {isOpen && filteredOptions.length > 0 && (
@@ -166,6 +165,7 @@ export function Combobox({ label, options }: ComboboxProps) {
                   : 'combobox__option'
               }
               role="option"
+              aria-selected={index === activeIndex}
               onMouseDown={(event) => {
                 // Prevent the input from losing focus before the click registers.
                 event.preventDefault()

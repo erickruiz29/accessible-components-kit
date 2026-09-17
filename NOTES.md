@@ -129,14 +129,43 @@ value changed" and "this listbox item was removed" — and Narrator's
 Enter-key confirmation logic seems to speak both, which sounds like one
 phrase said twice because the underlying string is identical.
 
-**Next experiment (not yet tried):** stagger the two mutations across two
-frames instead of one — commit the input value change first, let it paint,
-then remove the listbox on a subsequent tick (e.g. via
-`requestAnimationFrame` or a short `setTimeout`) — so UIA emits the two
-notifications far enough apart that Narrator doesn't bundle them into one
-double-speak event. This is a guess based on how this class of AT
-double-announcement is usually described, not a confirmed mechanism —
-needs a real Narrator pass to verify either way, and needs to be weighed
-against added complexity for what might just be a Narrator-specific
-verbosity quirk (Narrator's combobox support is documented as weaker than
-NVDA/JAWS for this exact pattern).
+**Tried and reverted:** staggering the value-commit and listbox-close across
+two `requestAnimationFrame` ticks instead of one render. Did not fix it —
+manual re-test showed Narrator still speaking the full phrase twice, and it
+turned out this doesn't even match the symptom: the repeat also happens on
+plain arrow-key **navigation** (before any Enter/commit), which a
+commit-time timing fix can't touch at all. Reverted to a single-render
+commit, since the spec doesn't call for staggering and it added complexity
+with no benefit.
+
+**Checked against the actual W3C APG spec** (fetched directly rather than
+inferred from blog examples): confirmed `aria-owns` should NOT be used —
+the spec says to prefer `aria-controls` and calls `aria-owns` legacy-only —
+so the earlier addition of `aria-owns` was itself a deviation from spec,
+not a neutral experiment. Also confirmed `aria-selected` on the
+AT-focused/active option is correct per the spec's model (the activedescendant
+option *is* treated as selected in this single-select pattern) — removing
+it earlier was wrong in the other direction. Both corrected back to
+spec-compliant markup. The component is now a direct match for the
+official APG editable-combobox-with-list-autocomplete example.
+
+**Also flagged and rejected:** a third-party tutorial example (non-W3C,
+personal site) that used `aria-owns`, `tabindex="0"` on every option
+simultaneously, and complex nested markup (headings, nested lists) inside
+`role="option"`. It contradicts the W3C APG page on multiple points and
+wasn't adopted — noting this mainly as a reminder to verify accessibility
+guidance against the actual spec before adopting a pattern from a
+non-authoritative source, especially when it looks plausible.
+
+**Where this stands:** repro still reproduces against the verified,
+spec-correct markup, on both navigation and commit. The APG spec's own
+compatibility notes acknowledge `aria-activedescendant` support "is not
+universally reliable across all AT/browser combinations" and explicitly
+calls out testing with NVDA, JAWS, and VoiceOver — Narrator isn't named.
+Current working conclusion (not yet fully confirmed) is that this is a
+Narrator-specific `aria-activedescendant` compatibility gap rather than a
+defect in this component's markup, but that hasn't been cross-checked
+against NVDA/VoiceOver yet to be sure the bug doesn't reproduce there too.
+Next step: an NVDA and/or VoiceOver pass on this same spec-correct markup,
+before deciding whether to accept this as a documented Narrator limitation
+or keep investigating.
