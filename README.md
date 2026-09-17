@@ -18,11 +18,22 @@ React, TypeScript, Vite. No component libraries.
 ## Components
 
 ### Combobox / autocomplete
-- Pattern followed: [WAI-ARIA Combobox](link)
-- What was hard: _(fill in — e.g. keeping `aria-activedescendant` in sync
-  with visual highlight while filtering)_
-- What I got wrong first, and how I found it: _(fill in — screen reader
-  testing usually surfaces something specific here)_
+- Pattern followed: [WAI-ARIA Editable Combobox With List Autocomplete](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-autocomplete-list/)
+- What was hard: keeping `aria-activedescendant` in sync with the visual
+  highlight while the list is being filtered out from under it — the active
+  index has to reset (or get re-clamped) every time the option list changes
+  length, or it can point at a stale/out-of-range option.
+- What I got wrong first, and how I found it: initially wired `role="combobox"`
+  onto a wrapper `<div>` around the `<input>`, with `role="textbox"` on the
+  input itself (the older ARIA 1.0-style split-node combobox pattern). This
+  looked right until the E2E tests written against `getByRole('textbox')`
+  started failing after adding `role="combobox"` — because an explicit
+  `role="textbox"` on a native `<input>` competes with the input's own
+  implicit role. Rechecked the current WAI-ARIA APG and found the pattern
+  puts `role="combobox"` directly on the `<input>`, with `aria-expanded`,
+  `aria-controls`, and `aria-activedescendant` all on that same element —
+  no wrapper node needed. Fixed by moving all of that onto the input and
+  dropping the wrapper.
 
 ### Modal
 - Pattern followed: [WAI-ARIA Dialog](link)
