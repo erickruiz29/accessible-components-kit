@@ -90,3 +90,53 @@ markup to actually expose the right roles and accessible names.
 **Process note:** this was the first component built on a feature branch
 (`day2-combobox-aria`) instead of directly on `main`, per the new
 branch-protection setup from the end of Day 1.
+
+### Open bug: Windows Narrator double-announces the selected value
+
+**Status:** open, tracked in the Day 2 PR. Not blocking the rest of Day 2,
+but Day 2 isn't "screen-reader verified" until this is resolved or
+consciously accepted as an AT limitation.
+
+**Repro:** with Narrator running, focus the combobox, type a filter (e.g.
+"ap"), arrow down to an option, press Enter. Narrator speaks the full
+phrase describing the selected option (e.g. "Apple one of one selected")
+**twice in a row**, back to back — not two different, complementary
+announcements, the same phrase repeated.
+
+**Ruled out so far:**
+- Not `aria-selected` on the highlighted option — removed it entirely
+  (it was wrongly marking the merely-*highlighted-while-navigating* option
+  as selected, which was a real bug worth fixing on its own, matching the
+  APG's autocomplete-list guidance more closely) and the double-speak
+  persisted unchanged.
+- Not a missing tree relationship between the input and its options —
+  added `aria-owns={listboxId}` (only while open) alongside the existing
+  `aria-controls`, in case Narrator's UIA mapping needed the ownership edge
+  to resolve `aria-activedescendant`. No change in behavior.
+- Not literal event-repetition — React 18 batches the `setInputValue` +
+  `setIsOpen(false)` + `setActiveIndex(-1)` calls inside `handleSelect` into
+  a single render, so it isn't three separate re-renders each re-announcing
+  something.
+
+**Leading theory:** in the single render that commits a selection, two
+different accessibility-tree nodes both end up "saying" the same string at
+the same instant — the `<input>`'s value changes to e.g. "Apple", and in
+that exact same render the `<ul role="listbox">` item that was *also*
+labeled "Apple" is removed from the DOM entirely (the whole listbox
+unmounts when `isOpen` goes false). Windows' UI Automation layer likely
+emits two separate change notifications in that instant — "this input's
+value changed" and "this listbox item was removed" — and Narrator's
+Enter-key confirmation logic seems to speak both, which sounds like one
+phrase said twice because the underlying string is identical.
+
+**Next experiment (not yet tried):** stagger the two mutations across two
+frames instead of one — commit the input value change first, let it paint,
+then remove the listbox on a subsequent tick (e.g. via
+`requestAnimationFrame` or a short `setTimeout`) — so UIA emits the two
+notifications far enough apart that Narrator doesn't bundle them into one
+double-speak event. This is a guess based on how this class of AT
+double-announcement is usually described, not a confirmed mechanism —
+needs a real Narrator pass to verify either way, and needs to be weighed
+against added complexity for what might just be a Narrator-specific
+verbosity quirk (Narrator's combobox support is documented as weaker than
+NVDA/JAWS for this exact pattern).
