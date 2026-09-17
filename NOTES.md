@@ -44,3 +44,49 @@ instead of leaving it as a one-off check. `npm run test:e2e` runs it,
 Day 2, with branch protection enabled on GitHub (PRs required, no direct
 pushes, 0 required approvals since this is a solo repo). Day 1's work was
 committed directly to `main` before this was set up.
+
+## Day 2 — Combobox: ARIA, keyboard nav, live region
+
+**Scope:** `role="combobox"` wiring, `aria-expanded`/`aria-controls`/
+`aria-activedescendant`, arrow-key + Home/End/Enter/Escape navigation, and a
+visually-hidden `role="status"` live region announcing the filtered result
+count. Screen reader pass (VoiceOver/NVDA) still outstanding — noting that
+honestly rather than claiming it's done.
+
+**What was hard:** keeping the active (highlighted) option in sync with the
+filtered list as it shrinks or grows on every keystroke. The active index is
+a plain number into `filteredOptions`, so every time the query changes and
+the array is rebuilt, that index has to be reset back to `-1` rather than
+carried over — otherwise arrow-key state from before a keystroke can end up
+pointing at the wrong option (or one that no longer exists) after filtering.
+Also had to remember `event.preventDefault()` on the option's `onMouseDown`
+(not `onClick`) so clicking an option doesn't blur the input first and close
+the listbox before the click handler runs.
+
+**What I got wrong first, and how I found it:** built the combobox against
+the older ARIA 1.0 "split node" pattern — `role="combobox"` on a wrapper
+`<div>`, `role="textbox"` explicitly on the `<input>` inside it. It looked
+plausible and matched some outdated blog examples. It broke the E2E suite:
+adding `role="combobox"` made Playwright's `getByRole('textbox', ...)`
+selector stop finding the input, because an explicit `role="textbox"` on a
+native `<input type="text">` still needs the browser's accessibility tree to
+resolve correctly, and the split-role approach doesn't match the modern
+WAI-ARIA APG combobox pattern. Re-read the current APG example, found the
+pattern puts `role="combobox"` directly on the `<input>` (with all the
+`aria-*` state on that same element, no wrapper), fixed it, and switched
+the tests to select by `getByRole('combobox', ...)`. This is exactly the
+kind of "confidently wrong ARIA" this project exists to catch, and it
+surfaced immediately from test tooling rather than needing a screen reader
+to notice — worth remembering that role-based test selectors double as a
+cheap accessibility tree sanity check.
+
+**Testing:** extended `e2e/combobox.spec.ts` from 4 to 7 tests — added
+live-region announcement text, arrow-key navigation + Enter-to-select via
+`aria-activedescendant`, and Escape-closes-without-changing-value. All
+selectors go through `getByRole`/`getByLabel` now instead of CSS/ID
+selectors, both because it's more resilient and because it forces the
+markup to actually expose the right roles and accessible names.
+
+**Process note:** this was the first component built on a feature branch
+(`day2-combobox-aria`) instead of directly on `main`, per the new
+branch-protection setup from the end of Day 1.
